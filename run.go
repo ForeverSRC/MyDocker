@@ -22,7 +22,6 @@ func Run(tty bool, cmdArray []string, res *subsystems.ResourceConfig) {
 		log.Error(err)
 	}
 
-
 	cgroupManager := cgroups.NewCgroupManager("mydocker-cgroup")
 	defer cgroupManager.Destroy()
 

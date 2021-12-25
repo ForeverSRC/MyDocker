@@ -8,6 +8,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const containerRootDir = "/root/busybox"
+
 func NewPipe() (*os.File, *os.File, error) {
 	read, write, err := os.Pipe()
 	if err != nil {
@@ -36,6 +38,8 @@ func NewParentProcess(tty bool) (*exec.Cmd, *os.File) {
 	// 传入管道文件读取端句柄
 	// 外带此句柄去创建子进程
 	cmd.ExtraFiles = []*os.File{readPipe}
+	// 指定容器初始化后的工作目录
+	cmd.Dir = containerRootDir
 
 	return cmd, writePipe
 }
