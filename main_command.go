@@ -63,7 +63,11 @@ var runCommand = cli.Command{
 		}
 
 		containerName := context.String("name")
-		Run(tty, cmdArray, containerName, resConf)
+		if err := Run(tty, cmdArray, containerName, resConf); err != nil {
+			log.Error(err)
+			return err
+		}
+
 		return nil
 	},
 }

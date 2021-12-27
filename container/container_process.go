@@ -9,7 +9,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func NewParentProcess(tty bool, containerName string) (*exec.Cmd, *os.File) {
+const (
+	containerMntURL        = "/root/my-docker/aufs/mnt/container-%s/"
+	containerWriteLayerUrl = "/root/my-docker/aufs/diff/rw-%s/"
+	containerRootFs        = "/root/my-docker/aufs/diff/busybox"
+)
+
+func NewParentProcess(tty bool, containerID string) (*exec.Cmd, *os.File) {
 	readPipe, writePipe, err := NewPipe()
 	if err != nil {
 		log.Errorf("new pipe error %v", err)
@@ -26,7 +32,7 @@ func NewParentProcess(tty bool, containerName string) (*exec.Cmd, *os.File) {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
+		dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
 		if err := os.MkdirAll(dirUrl, 0622); err != nil {
 			log.Errorf("new parent process mkdir %s error: %v", dirUrl, err)
 			return nil, nil
@@ -47,10 +53,13 @@ func NewParentProcess(tty bool, containerName string) (*exec.Cmd, *os.File) {
 	// 外带此句柄去创建子进程
 	cmd.ExtraFiles = []*os.File{readPipe}
 	// 指定容器初始化后的工作目录
-	mntURL := "/root/mnt/"
-	rootURL := "/root/"
-	NewWorkSpace(rootURL, mntURL)
-	cmd.Dir = mntURL
+	mntUrl, err := NewWorkSpace(containerID)
+	if err != nil {
+		log.Errorf("new workspace error: %v", err)
+		return nil, nil
+	}
+
+	cmd.Dir = mntUrl
 
 	return cmd, writePipe
 }
@@ -65,73 +74,61 @@ func NewPipe() (*os.File, *os.File, error) {
 }
 
 // NewWorkSpace Create a AUFS filesystem as container root workspace
-func NewWorkSpace(rootURL, mntURL string) {
-	CreateReadOnlyLayer(rootURL)
-	CreateWriteLayer(rootURL)
-	CreateMountPoint(rootURL, mntURL)
-}
-
-func CreateReadOnlyLayer(rootURL string) {
-	busyboxURL := rootURL + "busybox/"
-	busyboxTarURL := rootURL + "busybox.tar.xz"
-	exist, err := PathExist(busyboxURL)
+func NewWorkSpace(containerID string) (string, error) {
+	writeUrl, err := CreateWriteLayer(containerID)
 	if err != nil {
-		log.Infof("fail to judge whether dir %s exists. %v", busyboxURL, err)
+		return "", err
 	}
 
-	if !exist {
-		if err := os.Mkdir(busyboxURL, 0777); err != nil {
-			log.Errorf("mkdir %s error: %v", busyboxURL, err)
-		}
-
-		if _, err := exec.Command("tar", "-xvf", busyboxTarURL, "-C", busyboxURL).CombinedOutput(); err != nil {
-			log.Errorf("untar dir %s error: %v", busyboxURL, err)
-		}
-	}
+	return CreateMountPoint(containerID, writeUrl)
 }
 
-func CreateWriteLayer(rootURL string) {
-	writeURL := rootURL + "writeLayer/"
+func CreateWriteLayer(containerID string) (string, error) {
+	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
 	if err := os.Mkdir(writeURL, 0777); err != nil {
-		log.Errorf("mkdir %s error: %v", writeURL, err)
+		return "", fmt.Errorf("mkdir %s error: %v", writeURL, err)
 	}
 
+	return writeURL, nil
 }
 
-func CreateMountPoint(rootURL, mntURL string) {
-	if err := os.Mkdir(mntURL, 0777); err != nil {
-		log.Errorf("mkdir %s error: %v", mntURL, err)
+func CreateMountPoint(containerID, writeUrl string) (string, error) {
+	mntUrl := fmt.Sprintf(containerMntURL, containerID)
+	if err := os.Mkdir(mntUrl, 0777); err != nil {
+		return "", fmt.Errorf("mkdir %s error: %v", mntUrl, err)
 	}
 
-	dirs := fmt.Sprintf("dirs=%swriteLayer:%sbusybox", rootURL, rootURL)
-	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntURL)
+	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, containerRootFs)
+	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntUrl)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+	return mntUrl, err
+}
+
+func DeleteWorkSpace(containerID string) {
+	DeleteMountPoint(containerID)
+	DeleteWriterLayer(containerID)
+}
+
+func DeleteMountPoint(containerID string) {
+	mntUrl := fmt.Sprintf(containerMntURL, containerID)
+
+	cmd := exec.Command("umount", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Errorf("%v", err)
 	}
-}
 
-func DeleteWorkSpace(rootURL, mntURL string) {
-	DeleteMountPoint(rootURL, mntURL)
-	DeleteWriterLayer(rootURL)
-}
-
-func DeleteMountPoint(rootURL, mntURL string) {
-	cmd := exec.Command("umount", mntURL)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Errorf("%v", err)
-	}
-
-	if err := os.RemoveAll(mntURL); err != nil {
-		log.Errorf("remove dir %s error: %v", mntURL, err)
+	if err := os.RemoveAll(mntUrl); err != nil {
+		log.Errorf("remove dir %s error: %v", mntUrl, err)
 	}
 }
 
-func DeleteWriterLayer(rootURL string) {
-	writeURL := rootURL + "writeLayer/"
+func DeleteWriterLayer(containerID string) {
+	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
 	if err := os.RemoveAll(writeURL); err != nil {
 		log.Errorf("remove dir %s error: %v", writeURL, err)
 	}

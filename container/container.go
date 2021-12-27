@@ -29,23 +29,27 @@ const (
 )
 
 const (
-	DefaultInfoLocation = "/var/run/my-docker/%s/"
+	DefaultInfoLocation = "/root/my-docker/containers/%s/"
 	ConfigName          = "config.json"
 	ContainerLogFile    = "container.log"
 )
 
-func RecordContainerInfo(containerPID int, commandArray []string, containerName string) (string, error) {
+func GenerateContainerIDAndName(containerName string) (string, string) {
 	id := randStringBytes(10)
-
-	createTime := time.Now().Format("2006-01-02 15:04:05")
-	command := strings.Join(commandArray, "")
-
 	if containerName == "" {
 		containerName = id
 	}
 
+	return id, containerName
+}
+
+func RecordContainerInfo(containerID string, containerPID int, commandArray []string, containerName string) error {
+
+	createTime := time.Now().Format("2006-01-02 15:04:05")
+	command := strings.Join(commandArray, "")
+
 	containerInfo := &ContainerInfo{
-		Id:         id,
+		Id:         containerID,
 		Pid:        strconv.Itoa(containerPID),
 		Command:    command,
 		CreateTime: createTime,
@@ -56,7 +60,7 @@ func RecordContainerInfo(containerPID int, commandArray []string, containerName 
 	jsonBytes, err := json.Marshal(containerInfo)
 	if err != nil {
 		log.Errorf("record container info error: %v", err)
-		return "", err
+		return err
 	}
 
 	jsonStr := string(jsonBytes)
@@ -64,7 +68,7 @@ func RecordContainerInfo(containerPID int, commandArray []string, containerName 
 	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
 	if err := os.Mkdir(dirUrl, 0622); err != nil {
 		log.Errorf("mkdir error: %v", err)
-		return "", err
+		return err
 	}
 
 	fileName := dirUrl + "/" + ConfigName
@@ -72,15 +76,15 @@ func RecordContainerInfo(containerPID int, commandArray []string, containerName 
 	defer file.Close()
 	if err != nil {
 		log.Errorf("create file error: %v", err)
-		return "", err
+		return err
 	}
 
 	if _, err := file.WriteString(jsonStr); err != nil {
 		log.Errorf("file write string error %v", err)
-		return "", err
+		return err
 	}
 
-	return containerName, nil
+	return nil
 }
 
 func DeleteContainerInfo(containerId string) {
