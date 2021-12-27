@@ -81,8 +81,7 @@ func setUpMount() {
 }
 
 func pivotRoot(root string) error {
-	// systemd 加入linux之后, mount namespace 就变成 shared by default, 所以你必须显示
-	//声明你要这个新的mount namespace独立。
+	// systemd 加入linux之后, mount namespace 就变成 shared by default, 必须显式声明新的mount namespace独立。
 	err := syscall.Mount("", "/", "", syscall.MS_PRIVATE|syscall.MS_REC, "")
 	if err != nil {
 		return err

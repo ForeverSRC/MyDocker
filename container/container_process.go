@@ -15,14 +15,32 @@ func NewParentProcess(tty bool, containerName string) (*exec.Cmd, *os.File) {
 		log.Errorf("new pipe error %v", err)
 		return nil, nil
 	}
+
 	cmd := exec.Command("/proc/self/exe", "init")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC,
 	}
+
 	if tty {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+	} else {
+		dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
+		if err := os.MkdirAll(dirUrl, 0622); err != nil {
+			log.Errorf("new parent process mkdir %s error: %v", dirUrl, err)
+			return nil, nil
+		}
+
+		stdLogFilePath := dirUrl + ContainerLogFile
+		stdLogFile, err := os.Create(stdLogFilePath)
+		if err != nil {
+			log.Errorf("new parent process create file %s error: %v", stdLogFilePath, err)
+			return nil, nil
+		}
+
+		cmd.Stdout = stdLogFile
+
 	}
 
 	// 传入管道文件读取端句柄

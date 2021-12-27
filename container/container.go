@@ -29,8 +29,9 @@ const (
 )
 
 const (
-	DefaultInfoLocation = "/var/run/mydocker/%s/"
+	DefaultInfoLocation = "/var/run/my-docker/%s/"
 	ConfigName          = "config.json"
+	ContainerLogFile    = "container.log"
 )
 
 func RecordContainerInfo(containerPID int, commandArray []string, containerName string) (string, error) {
@@ -153,4 +154,25 @@ func printContainerInfoTable(containers []*ContainerInfo) {
 		log.Errorf("flush error: %v", err)
 	}
 
+}
+
+func LogContainer(containerName string) {
+	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
+	logFileLocation := dirUrl + ContainerLogFile
+
+	file, err := os.Open(logFileLocation)
+	defer file.Close()
+
+	if err != nil {
+		log.Errorf("log container open file %s error: %v", logFileLocation, err)
+		return
+	}
+
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Errorf("log container read file %s error: %v", logFileLocation, err)
+		return
+	}
+
+	fmt.Fprint(os.Stdout, string(content))
 }
