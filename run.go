@@ -38,6 +38,9 @@ func Run(tty bool, cmdArray []string, res *subsystems.ResourceConfig) {
 	}
 
 	parent.Wait()
+	mntURL := "/root/mnt"
+	rootURL := "/root/"
+	container.DeleteWorkSpace(rootURL, mntURL)
 }
 
 func sendInitCommand(cmdArray []string, writePipe *os.File) error {
