@@ -7,31 +7,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
+	"github.com/ForeverSRC/MyDocker/cgroups"
 	log "github.com/sirupsen/logrus"
-)
-
-type ContainerInfo struct {
-	Pid        string `json:"pid"`
-	Id         string `json:"id"`
-	Name       string `json:"name"`
-	Command    string `json:"command"`
-	CreateTime string `json:"createTime"`
-	Status     string `json:"status"`
-}
-
-const (
-	RUNNING = "running"
-	STOP    = "stopped"
-	EXIT    = "exited"
-)
-
-const (
-	DefaultInfoLocation = "/root/my-docker/containers/%s/"
-	ConfigName          = "config.json"
-	ContainerLogFile    = "container.log"
 )
 
 func GenerateContainerIDAndName(containerName string) (string, string) {
@@ -65,13 +46,13 @@ func RecordContainerInfo(containerID string, containerPID int, commandArray []st
 
 	jsonStr := string(jsonBytes)
 
-	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
-	if err := os.Mkdir(dirUrl, 0622); err != nil {
+	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
+	if err := os.Mkdir(dirUrl, 0622); err != nil&&!os.IsExist(err) {
 		log.Errorf("mkdir error: %v", err)
 		return err
 	}
 
-	fileName := dirUrl + "/" + ConfigName
+	fileName := dirUrl + ConfigName
 	file, err := os.Create(fileName)
 	defer file.Close()
 	if err != nil {
@@ -85,13 +66,6 @@ func RecordContainerInfo(containerID string, containerPID int, commandArray []st
 	}
 
 	return nil
-}
-
-func DeleteContainerInfo(containerId string) {
-	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerId)
-	if err := os.RemoveAll(dirUrl); err != nil {
-		log.Errorf("remove dir %s error %v", dirUrl, err)
-	}
 }
 
 func ListContainers() {
@@ -121,10 +95,9 @@ func ListContainers() {
 }
 
 func getContainerInfo(file os.FileInfo) (*ContainerInfo, error) {
-	containerName := file.Name()
+	containerID := file.Name()
 
-	configFileDir := fmt.Sprintf(DefaultInfoLocation, containerName)
-	configFileDir = configFileDir + ConfigName
+	configFileDir := getContainerConfigFilePath(containerID)
 
 	content, err := ioutil.ReadFile(configFileDir)
 	if err != nil {
@@ -160,8 +133,8 @@ func printContainerInfoTable(containers []*ContainerInfo) {
 
 }
 
-func LogContainer(containerName string) {
-	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerName)
+func LogContainer(containerID string) {
+	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
 	logFileLocation := dirUrl + ContainerLogFile
 
 	file, err := os.Open(logFileLocation)
@@ -179,4 +152,102 @@ func LogContainer(containerName string) {
 	}
 
 	fmt.Fprint(os.Stdout, string(content))
+}
+
+func StopContainer(containerID string) {
+	containerInfo, err := getContainerInfoById(containerID)
+	if err != nil {
+		log.Errorf("get container info of %s error: %v", containerID, err)
+		return
+	}
+
+	pid, err := strconv.Atoi(containerInfo.Pid)
+	if err != nil {
+		log.Errorf("convert pid from string to int error: %v", err)
+		return
+	}
+
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		log.Errorf("stop container %s error: %v", containerID, err)
+		return
+	}
+
+	changeContainerInfoForStop(containerInfo)
+
+}
+
+func StopContainerForTty(containerID string)  {
+	containerInfo, err := getContainerInfoById(containerID)
+	if err != nil {
+		log.Errorf("get container info of %s error: %v", containerID, err)
+		return
+	}
+
+	changeContainerInfoForStop(containerInfo)
+}
+
+func changeContainerInfoForStop(containerInfo *ContainerInfo){
+	containerInfo.Status = STOP
+	containerInfo.Pid = " "
+	newContentBytes, err := json.Marshal(containerInfo)
+	if err != nil {
+		log.Errorf("json marshal container %s error: %v", containerInfo.Id, err)
+		return
+	}
+
+	configFilePath := getContainerConfigFilePath(containerInfo.Id)
+	if err := ioutil.WriteFile(configFilePath, newContentBytes, 0622); err != nil {
+		log.Errorf("write file %s error: %v", configFilePath, err)
+	}
+}
+
+func getContainerInfoById(containerID string) (*ContainerInfo, error) {
+	configFilePath := getContainerConfigFilePath(containerID)
+
+	contentBytes, err := ioutil.ReadFile(configFilePath)
+	if err != nil {
+		log.Errorf("read file %s error: %v", configFilePath, err)
+		return nil, err
+	}
+
+	var containerInfo ContainerInfo
+	if err := json.Unmarshal(contentBytes, &containerInfo); err != nil {
+		log.Errorf("get container info by id, unmarshal error: %v", err)
+		return nil, err
+	}
+
+	return &containerInfo, nil
+}
+
+func RemoveContainer(containerID string) {
+	containerInfo, err := getContainerInfoById(containerID)
+	if err != nil {
+		log.Errorf("get container %s info error %v", containerID, err)
+		return
+	}
+
+	if containerInfo.Status != STOP {
+		log.Errorf("could not remove running container")
+		return
+	}
+
+	// remove container config files
+	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
+	if err = os.RemoveAll(dirUrl); err != nil {
+		log.Errorf("remove file %s error: %v", dirUrl, err)
+		return
+	}
+
+	// remove container write layer
+	if err = DeleteWorkSpace(containerID); err != nil {
+		log.Errorf("remove workspace of container %s error: %v", containerID, err)
+		return
+	}
+
+	// remove container cgroups
+	cgroupManager := cgroups.NewCgroupManager(fmt.Sprintf(cgroups.CgroupPathFormat, containerID))
+	if err = cgroupManager.Destroy(); err != nil {
+		log.Errorf("remove cgroup of container %s error: %v", containerID, err)
+	}
+
 }

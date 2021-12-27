@@ -1,6 +1,7 @@
 package container
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -15,4 +16,11 @@ func randStringBytes(n int) string {
 	}
 
 	return string(b)
+}
+
+func getContainerConfigFilePath(containerID string) string {
+	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
+	configFilePath := dirUrl + ConfigName
+
+	return configFilePath
 }

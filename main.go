@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/ForeverSRC/MyDocker/commands"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -14,12 +15,7 @@ func main() {
 	app.Name = "my-docker"
 	app.Usage = usage
 
-	app.Commands = []cli.Command{
-		initCommand,
-		runCommand,
-		listCommand,
-		logCommand,
-	}
+	app.Commands = commands.AllCommands
 
 	app.Before = func(context *cli.Context) error {
 		log.SetFormatter(&log.JSONFormatter{})

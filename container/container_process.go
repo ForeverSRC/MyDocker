@@ -107,31 +107,34 @@ func CreateMountPoint(containerID, writeUrl string) (string, error) {
 	return mntUrl, err
 }
 
-func DeleteWorkSpace(containerID string) {
-	DeleteMountPoint(containerID)
-	DeleteWriterLayer(containerID)
+func DeleteWorkSpace(containerID string) error {
+	if err := DeleteMountPoint(containerID); err != nil {
+		return err
+	}
+
+	return DeleteWriterLayer(containerID)
 }
 
-func DeleteMountPoint(containerID string) {
+func DeleteMountPoint(containerID string) error {
 	mntUrl := fmt.Sprintf(containerMntURL, containerID)
 
 	cmd := exec.Command("umount", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Errorf("%v", err)
+		return err
 	}
 
 	if err := os.RemoveAll(mntUrl); err != nil {
-		log.Errorf("remove dir %s error: %v", mntUrl, err)
+		return fmt.Errorf("remove dir %s error: %v", mntUrl, err)
 	}
+
+	return nil
 }
 
-func DeleteWriterLayer(containerID string) {
+func DeleteWriterLayer(containerID string) error {
 	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
-	if err := os.RemoveAll(writeURL); err != nil {
-		log.Errorf("remove dir %s error: %v", writeURL, err)
-	}
+	return os.RemoveAll(writeURL)
 }
 
 func PathExist(path string) (bool, error) {

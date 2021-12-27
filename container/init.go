@@ -29,6 +29,7 @@ func RunContainerInitProcess() error {
 		log.Errorf("exec look path error %v", err)
 		return err
 	}
+
 	log.Infof("find path %s", path)
 	// init进程读取了父进程传递过来的参数，在子进程内执行，完成了将用户指定命令传递给子进程的操作
 	if err := syscall.Exec(path, cmdArray[0:], os.Environ()); err != nil {
