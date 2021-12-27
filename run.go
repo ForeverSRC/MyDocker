@@ -11,8 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Run(tty bool, cmdArray []string, res *subsystems.ResourceConfig) {
-	parent, writePipe := container.NewParentProcess(tty)
+func Run(tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig) {
+	parent, writePipe := container.NewParentProcess(tty, containerName)
 	if parent == nil {
 		log.Errorf("new parent process error")
 		return
@@ -20,6 +20,12 @@ func Run(tty bool, cmdArray []string, res *subsystems.ResourceConfig) {
 
 	if err := parent.Start(); err != nil {
 		log.Error(err)
+	}
+
+	containerName, err := container.RecordContainerInfo(parent.Process.Pid, cmdArray, containerName)
+	if err != nil {
+		log.Errorf("record container info error: %v", err)
+		return
 	}
 
 	cgroupManager := cgroups.NewCgroupManager("mydocker-cgroup")
@@ -37,7 +43,10 @@ func Run(tty bool, cmdArray []string, res *subsystems.ResourceConfig) {
 		log.Error(err)
 	}
 
-	parent.Wait()
+	if tty {
+		parent.Wait()
+	}
+
 	mntURL := "/root/mnt"
 	rootURL := "/root/"
 	container.DeleteWorkSpace(rootURL, mntURL)

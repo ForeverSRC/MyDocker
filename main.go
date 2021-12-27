@@ -7,17 +7,17 @@ import (
 	"github.com/urfave/cli"
 )
 
-const usage = `a simple container runtime implementation.
-Just for fun.`
+const usage = `a simple container runtime implementation. Just for fun.`
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "mydocker"
+	app.Name = "my-docker"
 	app.Usage = usage
 
 	app.Commands = []cli.Command{
 		initCommand,
 		runCommand,
+		listCommand,
 	}
 
 	app.Before = func(context *cli.Context) error {

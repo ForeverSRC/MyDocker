@@ -12,11 +12,15 @@ import (
 var runCommand = cli.Command{
 	Name: "run",
 	Usage: `Create a container with namespace and cgroups limit
-            mydocker run -ti [command]`,
+            my-docker run -ti [command]`,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
 			Name:  "ti",
 			Usage: "enable tty",
+		},
+		cli.BoolFlag{
+			Name:  "d",
+			Usage: "detach container",
 		},
 		cli.StringFlag{
 			Name:  "mem",
@@ -30,11 +34,15 @@ var runCommand = cli.Command{
 			Name:  "cpuset",
 			Usage: "cpuset limit",
 		},
+		cli.StringFlag{
+			Name:  "name",
+			Usage: "container name",
+		},
 	},
 
 	Action: func(context *cli.Context) error {
 		if len(context.Args()) < 1 {
-			return fmt.Errorf("Missing container command")
+			return fmt.Errorf("missing container command")
 		}
 		// 用户指定运行的命令
 		var cmdArray []string
@@ -43,20 +51,26 @@ var runCommand = cli.Command{
 		}
 
 		tty := context.Bool("ti")
+		detach := context.Bool("d")
+		if tty && detach {
+			return fmt.Errorf("-ti and -d parameter can not both provided")
+		}
+
 		resConf := &subsystems.ResourceConfig{
 			MemoryLimit: context.String("mem"),
 			CpuSet:      context.String("cpuset"),
 			CpuShare:    context.String("cpushare"),
 		}
 
-		Run(tty, cmdArray, resConf)
+		containerName := context.String("name")
+		Run(tty, cmdArray, containerName, resConf)
 		return nil
 	},
 }
 
 var initCommand = cli.Command{
 	Name:  "init",
-	Usage: "Init container proccess run user's process in container. Do not call it outside",
+	Usage: "Init container process run user's process in container. Do not call it outside",
 	Action: func(context *cli.Context) error {
 		log.Infof("init come on")
 		if err := container.RunContainerInitProcess(); err != nil {
@@ -64,6 +78,15 @@ var initCommand = cli.Command{
 			return err
 		}
 
+		return nil
+	},
+}
+
+var listCommand = cli.Command{
+	Name:  "ps",
+	Usage: "list all containers",
+	Action: func(context *cli.Context) error {
+		container.ListContainers()
 		return nil
 	},
 }
