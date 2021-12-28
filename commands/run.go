@@ -15,8 +15,7 @@ import (
 
 var runCommand = cli.Command{
 	Name: "run",
-	Usage: `Create a container with namespace and cgroups limit
-            my-docker run -ti [command]`,
+	Usage: `create a container: my-docker run -ti [command]`,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
 			Name:  "ti",
@@ -114,9 +113,9 @@ func Run(tty bool, cmdArray []string, containerName string, res *subsystems.Reso
 	}
 
 	if tty {
-		err:=parent.Wait()
-		if err!=nil{
-			log.Errorf("parent wait return error: %v",err)
+		err := parent.Wait()
+		if err != nil {
+			log.Errorf("parent wait return error: %v", err)
 		}
 
 		container.StopContainerForTty(cID)

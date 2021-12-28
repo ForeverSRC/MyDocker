@@ -9,4 +9,5 @@ var AllCommands = []cli.Command{
 	logCommand,
 	stopCommand,
 	removeCommand,
+	execCommand,
 }

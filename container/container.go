@@ -47,7 +47,7 @@ func RecordContainerInfo(containerID string, containerPID int, commandArray []st
 	jsonStr := string(jsonBytes)
 
 	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
-	if err := os.Mkdir(dirUrl, 0622); err != nil&&!os.IsExist(err) {
+	if err := os.Mkdir(dirUrl, 0622); err != nil && !os.IsExist(err) {
 		log.Errorf("mkdir error: %v", err)
 		return err
 	}
@@ -155,7 +155,7 @@ func LogContainer(containerID string) {
 }
 
 func StopContainer(containerID string) {
-	containerInfo, err := getContainerInfoById(containerID)
+	containerInfo, err := GetContainerInfoById(containerID)
 	if err != nil {
 		log.Errorf("get container info of %s error: %v", containerID, err)
 		return
@@ -176,8 +176,8 @@ func StopContainer(containerID string) {
 
 }
 
-func StopContainerForTty(containerID string)  {
-	containerInfo, err := getContainerInfoById(containerID)
+func StopContainerForTty(containerID string) {
+	containerInfo, err := GetContainerInfoById(containerID)
 	if err != nil {
 		log.Errorf("get container info of %s error: %v", containerID, err)
 		return
@@ -186,7 +186,7 @@ func StopContainerForTty(containerID string)  {
 	changeContainerInfoForStop(containerInfo)
 }
 
-func changeContainerInfoForStop(containerInfo *ContainerInfo){
+func changeContainerInfoForStop(containerInfo *ContainerInfo) {
 	containerInfo.Status = STOP
 	containerInfo.Pid = " "
 	newContentBytes, err := json.Marshal(containerInfo)
@@ -201,7 +201,7 @@ func changeContainerInfoForStop(containerInfo *ContainerInfo){
 	}
 }
 
-func getContainerInfoById(containerID string) (*ContainerInfo, error) {
+func GetContainerInfoById(containerID string) (*ContainerInfo, error) {
 	configFilePath := getContainerConfigFilePath(containerID)
 
 	contentBytes, err := ioutil.ReadFile(configFilePath)
@@ -220,7 +220,7 @@ func getContainerInfoById(containerID string) (*ContainerInfo, error) {
 }
 
 func RemoveContainer(containerID string) {
-	containerInfo, err := getContainerInfoById(containerID)
+	containerInfo, err := GetContainerInfoById(containerID)
 	if err != nil {
 		log.Errorf("get container %s info error %v", containerID, err)
 		return
