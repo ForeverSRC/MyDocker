@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
+
+	img "github.com/ForeverSRC/MyDocker/image"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -12,13 +15,20 @@ import (
 const (
 	containerMntURL        = "/root/my-docker/aufs/mnt/container-%s/"
 	containerWriteLayerUrl = "/root/my-docker/aufs/diff/rw-%s/"
-	containerRootFs        = "/root/my-docker/aufs/diff/busybox"
+	containerAufsRootUrl   = "/root/my-docker/aufs/diff/%s/"
 )
 
-func NewParentProcess(tty bool, containerID string) (*exec.Cmd, *os.File) {
+func NewParentProcess(image string, tty bool, containerID string) (*exec.Cmd, *os.File) {
 	readPipe, writePipe, err := NewPipe()
 	if err != nil {
 		log.Errorf("new pipe error %v", err)
+		return nil, nil
+	}
+
+	// 指定容器初始化后的工作目录
+	mntUrl, err := NewWorkSpace(image, containerID)
+	if err != nil {
+		log.Errorf("new workspace error: %v", err)
 		return nil, nil
 	}
 
@@ -26,6 +36,10 @@ func NewParentProcess(tty bool, containerID string) (*exec.Cmd, *os.File) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC,
 	}
+
+	// 传入管道文件读取端句柄，外带此句柄去创建子进程
+	cmd.ExtraFiles = []*os.File{readPipe}
+	cmd.Dir = mntUrl
 
 	if tty {
 		cmd.Stdin = os.Stdin
@@ -49,18 +63,6 @@ func NewParentProcess(tty bool, containerID string) (*exec.Cmd, *os.File) {
 
 	}
 
-	// 传入管道文件读取端句柄
-	// 外带此句柄去创建子进程
-	cmd.ExtraFiles = []*os.File{readPipe}
-	// 指定容器初始化后的工作目录
-	mntUrl, err := NewWorkSpace(containerID)
-	if err != nil {
-		log.Errorf("new workspace error: %v", err)
-		return nil, nil
-	}
-
-	cmd.Dir = mntUrl
-
 	return cmd, writePipe
 }
 
@@ -74,13 +76,13 @@ func NewPipe() (*os.File, *os.File, error) {
 }
 
 // NewWorkSpace Create a AUFS filesystem as container root workspace
-func NewWorkSpace(containerID string) (string, error) {
+func NewWorkSpace(image, containerID string) (string, error) {
 	writeUrl, err := CreateWriteLayer(containerID)
 	if err != nil {
 		return "", err
 	}
 
-	return CreateMountPoint(containerID, writeUrl)
+	return CreateMountPoint(image, containerID, writeUrl)
 }
 
 func CreateWriteLayer(containerID string) (string, error) {
@@ -92,18 +94,30 @@ func CreateWriteLayer(containerID string) (string, error) {
 	return writeURL, nil
 }
 
-func CreateMountPoint(containerID, writeUrl string) (string, error) {
+func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
 	mntUrl := fmt.Sprintf(containerMntURL, containerID)
 	if err := os.Mkdir(mntUrl, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", mntUrl, err)
 	}
 
-	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, containerRootFs)
+	imageLayers, err := img.GetImageLayers(image)
+	if err != nil {
+		return "", err
+	}
+
+	roLayers := make([]string, len(imageLayers))
+	for i := len(imageLayers) - 1; i >= 0; i-- {
+		roLayers[i] = fmt.Sprintf(containerAufsRootUrl, imageLayers[i])
+	}
+
+	roLayerStr := strings.Join(roLayers, ":")
+
+	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, roLayerStr)
 	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	return mntUrl, err
 }
 
@@ -135,17 +149,4 @@ func DeleteMountPoint(containerID string) error {
 func DeleteWriterLayer(containerID string) error {
 	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
 	return os.RemoveAll(writeURL)
-}
-
-func PathExist(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	return false, err
 }

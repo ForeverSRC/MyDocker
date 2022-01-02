@@ -40,7 +40,7 @@ var execCommand = cli.Command{
 	},
 }
 
-func execContainer(containerID string, cmdArray []string)  {
+func execContainer(containerID string, cmdArray []string) {
 	containerInfo, err := container.GetContainerInfoById(containerID)
 	if err != nil {
 		log.Errorf("get container info error:%v", err)
@@ -60,12 +60,12 @@ func execContainer(containerID string, cmdArray []string)  {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err:=os.Setenv(ENV_EXEC_PID, containerInfo.Pid);err!=nil{
-		log.Errorf("set ENV_EXEC_PID = %s error: %v",containerInfo.Pid,err)
+	if err := os.Setenv(ENV_EXEC_PID, containerInfo.Pid); err != nil {
+		log.Errorf("set ENV_EXEC_PID = %s error: %v", containerInfo.Pid, err)
 		return
 	}
-	if err:=os.Setenv(ENV_EXEC_CMD, cmdStr);err!=nil{
-		log.Errorf("set ENV_EXEC_CMD = %s error: %v",cmdStr,err)
+	if err := os.Setenv(ENV_EXEC_CMD, cmdStr); err != nil {
+		log.Errorf("set ENV_EXEC_CMD = %s error: %v", cmdStr, err)
 		return
 	}
 

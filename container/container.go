@@ -24,7 +24,7 @@ func GenerateContainerIDAndName(containerName string) (string, string) {
 	return id, containerName
 }
 
-func RecordContainerInfo(containerID string, containerPID int, commandArray []string, containerName string) error {
+func RecordContainerInfo(image string, containerID string, containerPID int, commandArray []string, containerName string) error {
 
 	createTime := time.Now().Format("2006-01-02 15:04:05")
 	command := strings.Join(commandArray, "")
@@ -32,6 +32,7 @@ func RecordContainerInfo(containerID string, containerPID int, commandArray []st
 	containerInfo := &ContainerInfo{
 		Id:         containerID,
 		Pid:        strconv.Itoa(containerPID),
+		Image:      image,
 		Command:    command,
 		CreateTime: createTime,
 		Status:     RUNNING,
@@ -116,10 +117,11 @@ func getContainerInfo(file os.FileInfo) (*ContainerInfo, error) {
 
 func printContainerInfoTable(containers []*ContainerInfo) {
 	w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
-	fmt.Fprint(w, "ID\tName\tPID\tSTATUS\tCOMMAND\tCREATED\n")
+	fmt.Fprint(w, "CONTAINER ID\tIMAGE\tName\tPID\tSTATUS\tCOMMAND\tCREATED\n")
 	for _, item := range containers {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.Id,
+			item.Image,
 			item.Name,
 			item.Pid,
 			item.Status,

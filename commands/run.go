@@ -14,7 +14,7 @@ import (
 )
 
 var runCommand = cli.Command{
-	Name: "run",
+	Name:  "run",
 	Usage: `create a container: my-docker run -ti [command]`,
 	Flags: []cli.Flag{
 		cli.BoolFlag{
@@ -44,14 +44,17 @@ var runCommand = cli.Command{
 	},
 
 	Action: func(context *cli.Context) error {
-		if len(context.Args()) < 1 {
-			return fmt.Errorf("missing container command")
+		if len(context.Args()) < 2 {
+			return fmt.Errorf("missing image or container command")
 		}
-		// 用户指定运行的命令
-		var cmdArray []string
+
+		var args []string
 		for _, arg := range context.Args() {
-			cmdArray = append(cmdArray, arg)
+			args = append(args, arg)
 		}
+
+		image := args[0]
+		cmdArray := args[1:]
 
 		tty := context.Bool("ti")
 		detach := context.Bool("d")
@@ -66,7 +69,7 @@ var runCommand = cli.Command{
 		}
 
 		containerName := context.String("name")
-		if err := Run(tty, cmdArray, containerName, resConf); err != nil {
+		if err := Run(image, tty, cmdArray, containerName, resConf); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -75,10 +78,10 @@ var runCommand = cli.Command{
 	},
 }
 
-func Run(tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig) error {
+func Run(image string, tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig) error {
 	cID, cName := container.GenerateContainerIDAndName(containerName)
 
-	parent, writePipe := container.NewParentProcess(tty, cID)
+	parent, writePipe := container.NewParentProcess(image, tty, cID)
 	if parent == nil {
 		return fmt.Errorf("new parent process error")
 	}
@@ -87,7 +90,7 @@ func Run(tty bool, cmdArray []string, containerName string, res *subsystems.Reso
 		return err
 	}
 
-	if err := container.RecordContainerInfo(cID, parent.Process.Pid, cmdArray, cName); err != nil {
+	if err := container.RecordContainerInfo(image, cID, parent.Process.Pid, cmdArray, cName); err != nil {
 		syscall.Kill(parent.Process.Pid, syscall.SIGTERM)
 		writePipe.Close()
 		return fmt.Errorf("record container info error: %v", err)
