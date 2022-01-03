@@ -29,6 +29,7 @@ func RunContainerInitProcess() error {
 		log.Errorf("exec look path error %v", err)
 		return err
 	}
+
 	log.Infof("find path %s", path)
 	// init进程读取了父进程传递过来的参数，在子进程内执行，完成了将用户指定命令传递给子进程的操作
 	if err := syscall.Exec(path, cmdArray[0:], os.Environ()); err != nil {
@@ -81,8 +82,7 @@ func setUpMount() {
 }
 
 func pivotRoot(root string) error {
-	// systemd 加入linux之后, mount namespace 就变成 shared by default, 所以你必须显示
-	//声明你要这个新的mount namespace独立。
+	// systemd 加入linux之后, mount namespace 就变成 shared by default, 必须显式声明新的mount namespace独立。
 	err := syscall.Mount("", "/", "", syscall.MS_PRIVATE|syscall.MS_REC, "")
 	if err != nil {
 		return err

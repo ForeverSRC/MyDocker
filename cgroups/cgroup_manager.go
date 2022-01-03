@@ -12,6 +12,8 @@ type CgroupManager struct {
 	Resource *subsystems.ResourceConfig
 }
 
+const CgroupPathFormat = "my-docker-cgroup/%s"
+
 func NewCgroupManager(path string) *CgroupManager {
 	return &CgroupManager{
 		Path: path,
