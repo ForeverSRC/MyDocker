@@ -15,3 +15,5 @@ type ImageRepositories struct {
 const ImageRepositoriesPath = "/root/my-docker/image/aufs/repositories.json"
 
 const ImageRootPath = "/root/my-docker/image/aufs/imagedb/content/sha256/"
+
+const ImageConfigFileName = "config.json"

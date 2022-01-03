@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -72,4 +73,55 @@ func getRepositories() (*ImageRepositories, error) {
 
 func getImageRepoNameAndTag(image string) []string {
 	return strings.Split(image, ":")
+}
+
+func CommitNewImage(repo string, tag string, imageID string, config string) error {
+	dirUrl := ImageRootPath + imageID + "/"
+	if err := os.Mkdir(dirUrl, 0622); err != nil {
+		return err
+	}
+
+	configFileName := dirUrl + ImageConfigFileName
+
+	file, err := os.Create(configFileName)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	if _, err := file.WriteString(config); err != nil {
+		return err
+	}
+
+	return updateRepositories(repo, tag, imageID)
+
+}
+
+func updateRepositories(repo string, tag string, imageID string) error {
+	repositories,err:=getRepositories()
+	if err!=nil {
+		return err
+	}
+
+	repoInfo, ok := repositories.Repositories[repo]
+	if ok {
+		repoInfo[repo+":"+tag] = "sha256:" + imageID
+	} else {
+		tmpMap := make(map[string]string)
+		tmpMap[repo+":"+tag] = "sha256:" + imageID
+		repositories.Repositories[repo] = tmpMap
+	}
+
+	reposJsonByte, err := json.Marshal(repositories)
+	if err != nil {
+		return fmt.Errorf("marshal repositories json error: %v",err)
+	}
+
+	err=ioutil.WriteFile(ImageRepositoriesPath,reposJsonByte,0766)
+	if err!=nil{
+		return fmt.Errorf("write to %s error: %v",err)
+	}
+
+
+	return nil
 }

@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	containerMntURL        = "/root/my-docker/aufs/mnt/container-%s/"
-	containerWriteLayerUrl = "/root/my-docker/aufs/diff/rw-%s/"
-	containerAufsRootUrl   = "/root/my-docker/aufs/diff/%s/"
+	ContainerMntURL        = "/root/my-docker/aufs/mnt/container-%s/"
+	ContainerWriteLayerUrl = "/root/my-docker/aufs/diff/rw-%s/"
+	ContainerAUFSRootUrl   = "/root/my-docker/aufs/diff/%s/"
 )
 
 func NewParentProcess(image string, tty bool, containerID string) (*exec.Cmd, *os.File) {
@@ -86,7 +86,7 @@ func NewWorkSpace(image, containerID string) (string, error) {
 }
 
 func CreateWriteLayer(containerID string) (string, error) {
-	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
+	writeURL := fmt.Sprintf(ContainerWriteLayerUrl, containerID)
 	if err := os.Mkdir(writeURL, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", writeURL, err)
 	}
@@ -95,7 +95,7 @@ func CreateWriteLayer(containerID string) (string, error) {
 }
 
 func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
-	mntUrl := fmt.Sprintf(containerMntURL, containerID)
+	mntUrl := fmt.Sprintf(ContainerMntURL, containerID)
 	if err := os.Mkdir(mntUrl, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", mntUrl, err)
 	}
@@ -106,13 +106,15 @@ func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
 	}
 
 	roLayers := make([]string, len(imageLayers))
-	for i := len(imageLayers) - 1; i >= 0; i-- {
-		roLayers[i] = fmt.Sprintf(containerAufsRootUrl, imageLayers[i])
+	l:=len(imageLayers)
+	for i := 0;i<l;i++ {
+		roLayers[i] = imageLayers[l-1-i]
 	}
 
 	roLayerStr := strings.Join(roLayers, ":")
 
 	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, roLayerStr)
+	log.Infof("mounted dirs are: %s",dirs)
 	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -130,7 +132,7 @@ func DeleteWorkSpace(containerID string) error {
 }
 
 func DeleteMountPoint(containerID string) error {
-	mntUrl := fmt.Sprintf(containerMntURL, containerID)
+	mntUrl := fmt.Sprintf(ContainerMntURL, containerID)
 
 	cmd := exec.Command("umount", mntUrl)
 	cmd.Stdout = os.Stdout
@@ -147,6 +149,6 @@ func DeleteMountPoint(containerID string) error {
 }
 
 func DeleteWriterLayer(containerID string) error {
-	writeURL := fmt.Sprintf(containerWriteLayerUrl, containerID)
+	writeURL := fmt.Sprintf(ContainerWriteLayerUrl, containerID)
 	return os.RemoveAll(writeURL)
 }
