@@ -3,22 +3,19 @@ package main
 import (
 	"os"
 
+	"github.com/ForeverSRC/MyDocker/commands"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
-const usage = `a simple container runtime implementation.
-Just for fun.`
+const usage = `a simple container runtime implementation. Just for fun.`
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "mydocker"
+	app.Name = "my-docker"
 	app.Usage = usage
 
-	app.Commands = []cli.Command{
-		initCommand,
-		runCommand,
-	}
+	app.Commands = commands.AllCommands
 
 	app.Before = func(context *cli.Context) error {
 		log.SetFormatter(&log.JSONFormatter{})
