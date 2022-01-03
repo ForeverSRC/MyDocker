@@ -18,7 +18,7 @@ const (
 	ContainerAUFSRootUrl   = "/root/my-docker/aufs/diff/%s/"
 )
 
-func NewParentProcess(image string, tty bool, containerID string) (*exec.Cmd, *os.File) {
+func NewParentProcess(image string, tty bool, containerID string, envSlice []string) (*exec.Cmd, *os.File) {
 	readPipe, writePipe, err := NewPipe()
 	if err != nil {
 		log.Errorf("new pipe error %v", err)
@@ -39,6 +39,7 @@ func NewParentProcess(image string, tty bool, containerID string) (*exec.Cmd, *o
 
 	// 传入管道文件读取端句柄，外带此句柄去创建子进程
 	cmd.ExtraFiles = []*os.File{readPipe}
+	cmd.Env = append(os.Environ(), envSlice...)
 	cmd.Dir = mntUrl
 
 	if tty {
@@ -106,15 +107,15 @@ func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
 	}
 
 	roLayers := make([]string, len(imageLayers))
-	l:=len(imageLayers)
-	for i := 0;i<l;i++ {
+	l := len(imageLayers)
+	for i := 0; i < l; i++ {
 		roLayers[i] = imageLayers[l-1-i]
 	}
 
 	roLayerStr := strings.Join(roLayers, ":")
 
 	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, roLayerStr)
-	log.Infof("mounted dirs are: %s",dirs)
+	log.Infof("mounted dirs are: %s", dirs)
 	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

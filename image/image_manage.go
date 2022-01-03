@@ -98,8 +98,8 @@ func CommitNewImage(repo string, tag string, imageID string, config string) erro
 }
 
 func updateRepositories(repo string, tag string, imageID string) error {
-	repositories,err:=getRepositories()
-	if err!=nil {
+	repositories, err := getRepositories()
+	if err != nil {
 		return err
 	}
 
@@ -114,14 +114,13 @@ func updateRepositories(repo string, tag string, imageID string) error {
 
 	reposJsonByte, err := json.Marshal(repositories)
 	if err != nil {
-		return fmt.Errorf("marshal repositories json error: %v",err)
+		return fmt.Errorf("marshal repositories json error: %v", err)
 	}
 
-	err=ioutil.WriteFile(ImageRepositoriesPath,reposJsonByte,0766)
-	if err!=nil{
-		return fmt.Errorf("write to %s error: %v",err)
+	err = ioutil.WriteFile(ImageRepositoriesPath, reposJsonByte, 0766)
+	if err != nil {
+		return fmt.Errorf("write to %s error: %v", err)
 	}
-
 
 	return nil
 }

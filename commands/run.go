@@ -41,6 +41,10 @@ var runCommand = cli.Command{
 			Name:  "name",
 			Usage: "container name",
 		},
+		cli.StringSliceFlag{
+			Name:  "e",
+			Usage: "set environment",
+		},
 	},
 
 	Action: func(context *cli.Context) error {
@@ -69,7 +73,10 @@ var runCommand = cli.Command{
 		}
 
 		containerName := context.String("name")
-		if err := Run(image, tty, cmdArray, containerName, resConf); err != nil {
+
+		envSlice := context.StringSlice("e")
+
+		if err := Run(image, tty, cmdArray, containerName, resConf, envSlice); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -78,10 +85,10 @@ var runCommand = cli.Command{
 	},
 }
 
-func Run(image string, tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig) error {
+func Run(image string, tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig, envSlice []string) error {
 	cID, cName := container.GenerateContainerIDAndName(containerName)
 
-	parent, writePipe := container.NewParentProcess(image, tty, cID)
+	parent, writePipe := container.NewParentProcess(image, tty, cID, envSlice)
 	if parent == nil {
 		return fmt.Errorf("new parent process error")
 	}
