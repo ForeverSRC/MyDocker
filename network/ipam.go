@@ -44,7 +44,6 @@ func (ipam *IPAM) load() error {
 
 	err = json.Unmarshal(subnetJson[:n], ipam.Subnets)
 	if err != nil {
-		log.Errorf("error dump allocation info, %v", err)
 		return err
 	}
 	return nil
@@ -143,20 +142,20 @@ func (ipam *IPAM) Allocate(subnet *net.IPNet) (net.IP, error) {
 
 func (ipam *IPAM) Release(subnet *net.IPNet, ipAddr *net.IP) error {
 	ipam.Subnets = &map[string]string{}
-
-	_, subnet, _ = net.ParseCIDR(subnet.String())
-
 	err := ipam.load()
 	if err != nil {
-		log.Errorf("error dump allocation info %v", err)
+		log.Errorf("error load allocation info %v", err)
 	}
+
+	// 转换成子网聚合形式，因为subnet 中的ip可能是一个具体的ip，不是子网ip
+	_, subnet, _ = net.ParseCIDR(subnet.String())
 
 	c := 0
 	// 4字节表示方式
 	releaseIP := ipAddr.To4()
 	releaseIP[3] -= 1
 	for t := uint(4); t > 0; t -= 1 {
-		c += int(releaseIP[t-1] - subnet.IP[t-1]) << ((4-t) * 8)
+		c += int(releaseIP[t-1]-subnet.IP[t-1]) << ((4 - t) * 8)
 	}
 
 	ipalloc := []byte((*ipam.Subnets)[subnet.String()])
@@ -170,4 +169,31 @@ func (ipam *IPAM) Release(subnet *net.IPNet, ipAddr *net.IP) error {
 	}
 
 	return nil
+}
+
+func (ipam *IPAM) Delete(subnetStr string) error {
+	ipam.Subnets = &map[string]string{}
+	err := ipam.load()
+	if err != nil {
+		log.Errorf("error load allocation info: %v", err)
+	}
+
+	// 检查是否存在除网关外仍在使用的ip，如果存在，不允许释放
+	ipalloc := []byte((*ipam.Subnets)[subnetStr])
+	for i := 1; i < len(ipalloc); i++ {
+		if ipalloc[i] == '1' {
+			return fmt.Errorf("exist used ip addr in subnet %s", subnetStr)
+		}
+	}
+
+	delete(*ipam.Subnets, subnetStr)
+
+	err = ipam.dump()
+	if err != nil {
+		log.Errorf("error dump allocation info: %v", err)
+		return err
+	}
+
+	return nil
+
 }

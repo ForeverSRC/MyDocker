@@ -203,7 +203,9 @@ func DeleteNetwork(networkName string) error {
 		return fmt.Errorf("no such network: %s", networkName)
 	}
 
-	if err := ipAllocator.Release(nw.IpRange, &nw.IpRange.IP); err != nil {
+	_, subnet, _ := net.ParseCIDR(nw.IpRange.String())
+	subnetStr := subnet.String()
+	if err := ipAllocator.Delete(subnetStr); err != nil {
 		return fmt.Errorf("error remove network driver: %v", err)
 	}
 
