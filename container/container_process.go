@@ -115,7 +115,7 @@ func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
 	roLayerStr := strings.Join(roLayers, ":")
 
 	dirs := fmt.Sprintf("dirs=%s:%s", writeUrl, roLayerStr)
-	log.Infof("mounted dirs are: %s", dirs)
+
 	cmd := exec.Command("mount", "-t", "aufs", "-o", dirs, "none", mntUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

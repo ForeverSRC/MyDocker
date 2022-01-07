@@ -3,12 +3,14 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/ForeverSRC/MyDocker/cgroups"
 	"github.com/ForeverSRC/MyDocker/cgroups/subsystems"
 	"github.com/ForeverSRC/MyDocker/container"
+	"github.com/ForeverSRC/MyDocker/network"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -45,6 +47,14 @@ var runCommand = cli.Command{
 			Name:  "e",
 			Usage: "set environment",
 		},
+		cli.StringFlag{
+			Name:  "net",
+			Usage: "container network",
+		},
+		cli.StringFlag{
+			Name:  "p",
+			Usage: "port mapping",
+		},
 	},
 
 	Action: func(context *cli.Context) error {
@@ -75,8 +85,21 @@ var runCommand = cli.Command{
 		containerName := context.String("name")
 
 		envSlice := context.StringSlice("e")
+		network := context.String("net")
+		portMapping := context.StringSlice("p")
 
-		if err := Run(image, tty, cmdArray, containerName, resConf, envSlice); err != nil {
+		runCmdArgs := &runArgs{
+			image:         image,
+			tty:           tty,
+			cmdArray:      cmdArray,
+			containerName: containerName,
+			res:           resConf,
+			envSlice:      envSlice,
+			network:       network,
+			portMapping:   portMapping,
+		}
+
+		if err := Run(runCmdArgs); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -85,10 +108,21 @@ var runCommand = cli.Command{
 	},
 }
 
-func Run(image string, tty bool, cmdArray []string, containerName string, res *subsystems.ResourceConfig, envSlice []string) error {
-	cID, cName := container.GenerateContainerIDAndName(containerName)
+type runArgs struct {
+	image         string
+	tty           bool
+	cmdArray      []string
+	containerName string
+	res           *subsystems.ResourceConfig
+	envSlice      []string
+	network       string
+	portMapping   []string
+}
 
-	parent, writePipe := container.NewParentProcess(image, tty, cID, envSlice)
+func Run(args *runArgs) error {
+	cID, cName := container.GenerateContainerIDAndName(args.containerName)
+
+	parent, writePipe := container.NewParentProcess(args.image, args.tty, cID, args.envSlice)
 	if parent == nil {
 		return fmt.Errorf("new parent process error")
 	}
@@ -97,32 +131,50 @@ func Run(image string, tty bool, cmdArray []string, containerName string, res *s
 		return err
 	}
 
-	if err := container.RecordContainerInfo(image, cID, parent.Process.Pid, cmdArray, cName); err != nil {
+	cancelParent := func() {
 		syscall.Kill(parent.Process.Pid, syscall.SIGTERM)
 		writePipe.Close()
+	}
+
+	if err := container.RecordContainerInfo(args.image, cID, parent.Process.Pid, args.cmdArray, cName); err != nil {
+		cancelParent()
 		return fmt.Errorf("record container info error: %v", err)
 	}
 
 	cgroupManager := cgroups.NewCgroupManager(fmt.Sprintf(cgroups.CgroupPathFormat, cID))
 
-	if err := cgroupManager.Set(res); err != nil {
-		syscall.Kill(parent.Process.Pid, syscall.SIGTERM)
-		writePipe.Close()
+	if err := cgroupManager.Set(args.res); err != nil {
+		cancelParent()
 		return err
 	}
 
 	if err := cgroupManager.Apply(parent.Process.Pid); err != nil {
-		syscall.Kill(parent.Process.Pid, syscall.SIGTERM)
-		writePipe.Close()
+		cancelParent()
 		return err
 	}
 
-	if err := sendInitCommand(cmdArray, writePipe); err != nil {
+	if args.network != "" {
+		network.Init()
+		cinfo := &container.ContainerInfo{
+			Id:          cID,
+			Pid:         strconv.Itoa(parent.Process.Pid),
+			Name:        cName,
+			PortMapping: args.portMapping,
+		}
+
+		if err := network.Connect(args.network, cinfo); err != nil {
+			log.Errorf("error connect network %s: %v", args.network, err)
+			cancelParent()
+			return err
+		}
+	}
+
+	if err := sendInitCommand(args.cmdArray, writePipe); err != nil {
 		syscall.Kill(parent.Process.Pid, syscall.SIGTERM)
 		return err
 	}
 
-	if tty {
+	if args.tty {
 		err := parent.Wait()
 		if err != nil {
 			log.Errorf("parent wait return error: %v", err)

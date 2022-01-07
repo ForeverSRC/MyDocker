@@ -11,4 +11,5 @@ var AllCommands = []cli.Command{
 	removeCommand,
 	execCommand,
 	commitCommand,
+	networkCommand,
 }
