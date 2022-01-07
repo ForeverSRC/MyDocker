@@ -17,13 +17,12 @@ func (b *BridgeNetworkDriver) Name() string {
 	return "bridge"
 }
 
-func (b *BridgeNetworkDriver) Create(subnet string, name string) (*Network, error) {
-	ip, ipRange, _ := net.ParseCIDR(subnet)
-	ipRange.IP = ip
+func (b *BridgeNetworkDriver) Create(subnet string, gatewayIP string, name string) (*Network, error) {
 	n := &Network{
 		Name:    name,
-		IpRange: ipRange,
 		Driver:  b.Name(),
+		Subnet:  subnet,
+		Gateway: gatewayIP,
 	}
 
 	err := b.initBridge(n)
@@ -86,10 +85,8 @@ func (b *BridgeNetworkDriver) initBridge(n *Network) error {
 	}
 
 	//2.设置bridge设备的路由和地址
-	gatewayIPNet := *n.IpRange
-	gatewayIPNet.IP = n.IpRange.IP
-	if err := setInterfaceIP(bridgeName, gatewayIPNet.String()); err != nil {
-		return fmt.Errorf("error assigning address %s on bridge %s with an error of: %v", gatewayIPNet, bridgeName, err)
+	if err := setInterfaceIP(bridgeName, n.getIPNet()); err != nil {
+		return fmt.Errorf("error assigning address %s on bridge %s with an error of: %v", n.Subnet, bridgeName, err)
 	}
 
 	//3.启动bridge设备
@@ -98,7 +95,7 @@ func (b *BridgeNetworkDriver) initBridge(n *Network) error {
 	}
 
 	//4.设置iptables的SNAT规则
-	if err := setupIpTables(bridgeName, n.IpRange); err != nil {
+	if err := setupIpTables(bridgeName, n.Subnet); err != nil {
 		return fmt.Errorf("error setting iptables for %s, error: %v", bridgeName, err)
 	}
 
@@ -130,16 +127,10 @@ func createBridgeInterface(bridgeName string) error {
 }
 
 // setInterfaceIP 设置一个网络接口的IP地址
-func setInterfaceIP(name string, rawIP string) error {
+func setInterfaceIP(name string, ipNet *net.IPNet) error {
 	iface, err := netlink.LinkByName(name)
-
 	if err != nil {
 		return fmt.Errorf("error get interface: %v", err)
-	}
-
-	ipNet, err := netlink.ParseIPNet(rawIP)
-	if err != nil {
-		return err
 	}
 
 	addr := &netlink.Addr{
@@ -171,9 +162,9 @@ func setInterfaceUP(interfaceName string) error {
 }
 
 // setupIpTables 设置iptables对应bridge的MASQUERADE规则
-func setupIpTables(bridgeName string, subnet *net.IPNet) error {
+func setupIpTables(bridgeName string, subnet string) error {
 	// bash: iptables -t nat -A POSTROUTING -s <subnetName> ! -o <bridgeName> -j MASQUERADE
-	iptablesCmd := fmt.Sprintf("-t nat -A POSTROUTING -s %s ! -o %s -j MASQUERADE", subnet.String(), bridgeName)
+	iptablesCmd := fmt.Sprintf("-t nat -A POSTROUTING -s %s ! -o %s -j MASQUERADE", subnet, bridgeName)
 	cmd := exec.Command("iptables", strings.Split(iptablesCmd, " ")...)
 	output, err := cmd.Output()
 	if err != nil {

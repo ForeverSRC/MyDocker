@@ -29,9 +29,7 @@ func CreateNetwork(driver, subnet, name string) error {
 		return err
 	}
 
-	cider.IP = gatewayIp
-
-	nw, err := drivers[driver].Create(cider.String(), name)
+	nw, err := drivers[driver].Create(subnet, gatewayIp.To4().String(), name)
 
 	if err != nil {
 		return err
@@ -46,7 +44,8 @@ func Connect(networkName string, cinfo *container.ContainerInfo) error {
 		return fmt.Errorf("not such network %s", networkName)
 	}
 
-	ip, err := ipAllocator.Allocate(network.IpRange)
+	ip, err := ipAllocator.Allocate(network.Subnet)
+	log.Infof("ip allocated for container %s is: %s", cinfo.Id, ip.String())
 	if err != nil {
 		return err
 	}
@@ -81,12 +80,12 @@ func configEndpointIpAddrAndRoute(ep *Endpoint, cinfo *container.ContainerInfo) 
 	// 并使当前函数下面的操作都在此网络空间中进行，当前函数执行完毕后，恢复为默认的网络空间
 	defer enterContainerNetns(&peerLink, cinfo)()
 
-	// 获取到容器的IP地址及网段，用于配置容器内部借口地址
-	interfaceIP := *ep.Network.IpRange
+	// 获取到容器的IP地址及网段，用于配置容器内部接口地址
+	interfaceIP := ep.Network.getIPNet()
 	interfaceIP.IP = ep.IPAddress
 
-	if err = setInterfaceIP(vethPeerName, interfaceIP.String()); err != nil {
-		return fmt.Errorf("set network interface %s ip error: %v", ep.Network, err)
+	if err = setInterfaceIP(vethPeerName, interfaceIP); err != nil {
+		return fmt.Errorf("set network %s interface ip [%s] error: %v", ep.Network.Name, interfaceIP.IP.String(), err)
 	}
 
 	// 启动容器内的veth端点
@@ -108,7 +107,7 @@ func configEndpointIpAddrAndRoute(ep *Endpoint, cinfo *container.ContainerInfo) 
 	// bash: route add  -net 0.0.0.0/0 gw {bridge addr} dev {veth in container}
 	defaultRoute := &netlink.Route{
 		LinkIndex: peerLink.Attrs().Index,
-		Gw:        ep.Network.IpRange.IP,
+		Gw:        net.ParseIP(ep.Network.Gateway),
 		Dst:       cider,
 	}
 
@@ -181,12 +180,13 @@ func configPortMapping(ep *Endpoint) error {
 
 func ListNetwork() {
 	w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
-	fmt.Fprint(w, "NAME\tIp Range\tDriver\n")
+	fmt.Fprint(w, "NAME\tSubnet\tGateway\tDriver\n")
 
 	for _, nw := range networks {
-		fmt.Fprintf(w, "%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			nw.Name,
-			nw.IpRange.String(),
+			nw.Subnet,
+			nw.Gateway,
 			nw.Driver,
 		)
 	}
@@ -203,9 +203,7 @@ func DeleteNetwork(networkName string) error {
 		return fmt.Errorf("no such network: %s", networkName)
 	}
 
-	_, subnet, _ := net.ParseCIDR(nw.IpRange.String())
-	subnetStr := subnet.String()
-	if err := ipAllocator.Delete(subnetStr); err != nil {
+	if err := ipAllocator.Delete(nw.Subnet); err != nil {
 		return fmt.Errorf("error remove network driver: %v", err)
 	}
 

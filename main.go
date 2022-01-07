@@ -18,8 +18,10 @@ func main() {
 	app.Commands = commands.AllCommands
 
 	app.Before = func(context *cli.Context) error {
+		log.SetReportCaller(true)
 		log.SetFormatter(&log.JSONFormatter{})
 		log.SetOutput(os.Stdout)
+
 		return nil
 	}
 

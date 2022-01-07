@@ -13,8 +13,9 @@ import (
 
 type Network struct {
 	Name    string
-	IpRange *net.IPNet
 	Driver  string
+	Subnet  string
+	Gateway string
 }
 
 type Endpoint struct {
@@ -86,4 +87,10 @@ func (nw *Network) remove(dumpPath string) error {
 		return os.Remove(nwPath)
 	}
 
+}
+
+func (nw *Network) getIPNet() *net.IPNet {
+	_, cider, _ := net.ParseCIDR(nw.Subnet)
+	cider.IP = net.ParseIP(nw.Gateway)
+	return cider
 }

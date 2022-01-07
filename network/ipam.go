@@ -30,6 +30,7 @@ func (ipam *IPAM) load() error {
 			return err
 		}
 	}
+
 	subnetConfigFile, err := os.Open(ipam.SubnetAllocatorPath)
 	defer subnetConfigFile.Close()
 	if err != nil {
@@ -90,51 +91,86 @@ func (ipam *IPAM) CreateSubnet(subnet *net.IPNet) (net.IP, error) {
 	}
 
 	ones, size := subnet.Mask.Size()
+	subnetStr := subnet.String()
 
-	_, exist := (*ipam.Subnets)[subnet.String()]
+	_, exist := (*ipam.Subnets)[subnetStr]
 	if exist {
-		return nil, fmt.Errorf("pool overlaps with other one on this address space: %s", subnet.String())
+		return nil, fmt.Errorf("pool overlaps with other one on this address space: %s", subnetStr)
 	}
 
 	// 如果之前没有分配过指定网段，则初始化网段的分配配置
 	// 用 0 填满网段配置，1<<uint8(size-ones)表示网段中的可用地址数目
 	// size-ones表示子网掩码后买呢的网络位数，2^(size-ones)表示可用ip数目
-	(*ipam.Subnets)[subnet.String()] = strings.Repeat("0", 1<<uint8(size-ones))
+	(*ipam.Subnets)[subnetStr] = strings.Repeat("0", 1<<uint8(size-ones))
 
-	return ipam.Allocate(subnet)
+	ip, err := ipam.doAllocate(subnetStr)
+	if err != nil {
+		return nil, fmt.Errorf("allocate ip addr error: %v", err)
+	}
+
+	err = ipam.dump()
+	if err != nil {
+		log.Errorf("error dump allocation info: %v", err)
+		return nil, err
+	}
+
+	return ip, nil
 
 }
 
-func (ipam *IPAM) Allocate(subnet *net.IPNet) (net.IP, error) {
+func (ipam *IPAM) Allocate(subnet string) (net.IP, error) {
+	ipam.Subnets = &map[string]string{}
+	err := ipam.load()
+	if err != nil {
+		log.Errorf("error load allocation info: %v", err)
+		return nil, err
+	}
+
+	ip, err := ipam.doAllocate(subnet)
+	if err != nil {
+		return nil, fmt.Errorf("allocate ip addr error: %v", err)
+	}
+
+	err = ipam.dump()
+	if err != nil {
+		log.Errorf("error dump allocation info: %v", err)
+		return nil, err
+	}
+
+	return ip, nil
+}
+
+func (ipam *IPAM) doAllocate(subnet string) (net.IP, error) {
 	var ip net.IP
-	for idx, ch := range (*ipam.Subnets)[subnet.String()] {
+
+	bitMap := (*ipam.Subnets)[subnet]
+
+	for idx, ch := range bitMap {
 		if ch == '0' {
-			ipalloc := []byte((*ipam.Subnets)[subnet.String()])
-			ipalloc[idx] = '1'
-			(*ipam.Subnets)[subnet.String()] = string(ipalloc)
-
-			// 初始ip
-			ip = subnet.IP
-
 			// 计算当前数组偏移量对应的ip
 			// 示例：
 			// 原始数组[172，16，0，0]，偏移量idx=65555
 			// 则需要在各个部分依次加上 [uint8(65555>>24),uint8(65555>>16)，uint8(65555>>8)，uint8(65555>>0)]
 			// 结果为[0,1,0,19] 则偏移后的ip为[172,17,0,19]
+			ip, _, _ = net.ParseCIDR(subnet)
+			ip = ip.To4()
 			for t := uint(4); t > 0; t -= 1 {
-				[]byte(ip)[4-t] += uint8(idx >> ((t - 1) * 8))
+				ip[4-t] += uint8(idx >> ((t - 1) * 8))
 			}
 
 			// 计算下一个可用的ip
-			ip[3] += 1
+
+			ip[3] += uint8(1)
+
+			ipalloc := []byte((*ipam.Subnets)[subnet])
+			ipalloc[idx] = '1'
+			(*ipam.Subnets)[subnet] = string(ipalloc)
 			break
 		}
 	}
 
-	err := ipam.dump()
-	if err != nil {
-		log.Errorf("error dump allocation info: %v", err)
-		return nil, err
+	if ip == nil {
+		return nil, fmt.Errorf("no available ip for subnet %s", subnet)
 	}
 
 	return ip, nil
@@ -145,6 +181,7 @@ func (ipam *IPAM) Release(subnet *net.IPNet, ipAddr *net.IP) error {
 	err := ipam.load()
 	if err != nil {
 		log.Errorf("error load allocation info %v", err)
+		return err
 	}
 
 	// 转换成子网聚合形式，因为subnet 中的ip可能是一个具体的ip，不是子网ip
@@ -176,6 +213,7 @@ func (ipam *IPAM) Delete(subnetStr string) error {
 	err := ipam.load()
 	if err != nil {
 		log.Errorf("error load allocation info: %v", err)
+		return err
 	}
 
 	// 检查是否存在除网关外仍在使用的ip，如果存在，不允许释放
