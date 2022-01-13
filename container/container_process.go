@@ -19,12 +19,6 @@ const (
 )
 
 func NewParentProcess(image string, tty bool, containerID string, envSlice []string) (*exec.Cmd, *os.File) {
-	readPipe, writePipe, err := NewPipe()
-	if err != nil {
-		log.Errorf("new pipe error %v", err)
-		return nil, nil
-	}
-
 	// 指定容器初始化后的工作目录
 	mntUrl, err := NewWorkSpace(image, containerID)
 	if err != nil {
@@ -35,6 +29,12 @@ func NewParentProcess(image string, tty bool, containerID string, envSlice []str
 	cmd := exec.Command("/proc/self/exe", "init")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC,
+	}
+
+	readPipe, writePipe, err := NewPipe()
+	if err != nil {
+		log.Errorf("new pipe error %v", err)
+		return nil, nil
 	}
 
 	// 传入管道文件读取端句柄，外带此句柄去创建子进程
@@ -78,12 +78,17 @@ func NewPipe() (*os.File, *os.File, error) {
 
 // NewWorkSpace Create a AUFS filesystem as container root workspace
 func NewWorkSpace(image, containerID string) (string, error) {
+	imageID, err := img.GetImageID(image)
+	if err != nil {
+		return "", fmt.Errorf("get image ID error: %v", err)
+	}
+
 	writeUrl, err := CreateWriteLayer(containerID)
 	if err != nil {
 		return "", err
 	}
 
-	return CreateMountPoint(image, containerID, writeUrl)
+	return CreateMountPoint(imageID, containerID, writeUrl)
 }
 
 func CreateWriteLayer(containerID string) (string, error) {
@@ -95,13 +100,13 @@ func CreateWriteLayer(containerID string) (string, error) {
 	return writeURL, nil
 }
 
-func CreateMountPoint(image, containerID, writeUrl string) (string, error) {
+func CreateMountPoint(imageID, containerID, writeUrl string) (string, error) {
 	mntUrl := fmt.Sprintf(ContainerMntURL, containerID)
 	if err := os.Mkdir(mntUrl, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", mntUrl, err)
 	}
 
-	imageLayers, err := img.GetImageLayers(image)
+	imageLayers, err := img.GetImageLayers(imageID)
 	if err != nil {
 		return "", err
 	}

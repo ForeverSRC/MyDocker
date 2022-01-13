@@ -30,7 +30,6 @@ func RunContainerInitProcess() error {
 		return err
 	}
 
-	log.Infof("find path %s", path)
 	// init进程读取了父进程传递过来的参数，在子进程内执行，完成了将用户指定命令传递给子进程的操作
 	if err := syscall.Exec(path, cmdArray[0:], os.Environ()); err != nil {
 		log.Errorf(err.Error())
@@ -61,8 +60,6 @@ func setUpMount() {
 	if err != nil {
 		log.Errorf("pwd error:%v", err)
 	}
-
-	log.Infof("current location: %s", pwd)
 
 	if err = pivotRoot(pwd); err != nil {
 		log.Errorf("pivot root error: %v", err)

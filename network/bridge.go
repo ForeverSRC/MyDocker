@@ -33,6 +33,10 @@ func (b *BridgeNetworkDriver) Create(subnet string, gatewayIP string, name strin
 	return n, err
 }
 
+func (b *BridgeNetworkDriver) Recover(n *Network) {
+	_ = b.initBridge(n)
+}
+
 func (b *BridgeNetworkDriver) Delete(network *Network) error {
 	bridgeName := network.Name
 	br, err := netlink.LinkByName(bridgeName)
@@ -51,7 +55,7 @@ func (b *BridgeNetworkDriver) Connect(network *Network, endpoint *Endpoint) erro
 	}
 
 	la := netlink.NewLinkAttrs()
-	la.Name = endpoint.ID[:5]
+	la.Name = "veth"+endpoint.ID[:5]
 
 	// 设置veth的一端挂载到网络对应的Linux Bridge上
 	la.MasterIndex = br.Attrs().Index
@@ -105,9 +109,15 @@ func (b *BridgeNetworkDriver) initBridge(n *Network) error {
 // createBridgeInterface 创建linux Bridge设备
 func createBridgeInterface(bridgeName string) error {
 
-	_, err := net.InterfaceByName(bridgeName)
+	iface, err := net.InterfaceByName(bridgeName)
+	// err==nil 说明找到了对应的interface
 	interfaceExist := err == nil
-	if interfaceExist || !strings.Contains(err.Error(), "no such network interface") {
+	if interfaceExist {
+		if iface.Flags&net.FlagUp > 0 {
+			return fmt.Errorf("interface exists and is up")
+		}
+		// 如果错误是 "no such network interface"，说明没有，接下来要创建，如果不是这个，说明是其他错误，需要返回
+	} else if !strings.Contains(err.Error(), "no such network interface") {
 		return err
 	}
 

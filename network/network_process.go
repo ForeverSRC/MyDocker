@@ -45,7 +45,7 @@ func Connect(networkName string, cinfo *container.ContainerInfo) error {
 	}
 
 	ip, err := ipAllocator.Allocate(network.Subnet)
-	log.Infof("ip allocated for container %s is: %s", cinfo.Id, ip.String())
+	log.Infof("ip for container %s: %s", cinfo.Id, ip.String())
 	if err != nil {
 		return err
 	}

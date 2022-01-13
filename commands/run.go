@@ -51,7 +51,7 @@ var runCommand = cli.Command{
 			Name:  "net",
 			Usage: "container network",
 		},
-		cli.StringFlag{
+		cli.StringSliceFlag{
 			Name:  "p",
 			Usage: "port mapping",
 		},
@@ -189,7 +189,7 @@ func Run(args *runArgs) error {
 func sendInitCommand(cmdArray []string, writePipe *os.File) error {
 	defer writePipe.Close()
 	command := strings.Join(cmdArray, " ")
-	log.Infof("command all is [ %s ]", command)
+	log.Infof("command: [ %s ]", command)
 	if _, err := writePipe.WriteString(command); err != nil {
 		return fmt.Errorf("send init command [%s] error:%v", command, err)
 	}

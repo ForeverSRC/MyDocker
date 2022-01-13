@@ -47,6 +47,7 @@ func Init() error {
 		}
 
 		networks[nwName] = nw
+		drivers[nw.Driver].Recover(nw)
 		return nil
 	})
 
