@@ -10,12 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetImageLayers(image string) ([]string, error) {
-	imageID, err := getImageID(image)
-	if err != nil {
-		return nil, fmt.Errorf("get image ID error: %v", err)
-	}
-
+func GetImageLayers(imageID string) ([]string, error) {
 	imgID := strings.Split(imageID, ":")
 
 	imageConfigDir := ImageRootPath + imgID[1] + "/config.json"
@@ -34,7 +29,7 @@ func GetImageLayers(image string) ([]string, error) {
 
 }
 
-func getImageID(image string) (string, error) {
+func GetImageID(image string) (string, error) {
 	imgRepo, err := getRepositories()
 	if err != nil {
 		log.Errorf("get image repositories info error: %v", err)

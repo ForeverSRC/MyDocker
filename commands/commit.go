@@ -40,7 +40,12 @@ func commitContainer(containerID, imageInfo string) error {
 		return err
 	}
 
-	layers, err := image.GetImageLayers(containerInfo.Image)
+	imageID, err := image.GetImageID(containerInfo.Image)
+	if err != nil {
+		return fmt.Errorf("get image ID error: %v", err)
+	}
+
+	layers, err := image.GetImageLayers(imageID)
 	if err != nil {
 		return err
 	}
