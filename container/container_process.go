@@ -18,20 +18,13 @@ const (
 	ContainerAUFSRootUrl   = "/root/my-docker/aufs/diff/%s/"
 )
 
-func NewParentProcess(image string, tty bool, containerID string, envSlice []string) (*exec.Cmd, *os.File) {
-	// 指定容器初始化后的工作目录
-	mntUrl, err := NewWorkSpace(image, containerID)
-	if err != nil {
-		log.Errorf("new workspace error: %v", err)
-		return nil, nil
-	}
-
+func NewParentProcess(mntUrl string, tty bool, containerID string, envSlice []string) (*exec.Cmd, *os.File) {
 	cmd := exec.Command("/proc/self/exe", "init")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWIPC,
 	}
 
-	readPipe, writePipe, err := NewPipe()
+	readPipe, writePipe, err := newPipe()
 	if err != nil {
 		log.Errorf("new pipe error %v", err)
 		return nil, nil
@@ -67,7 +60,7 @@ func NewParentProcess(image string, tty bool, containerID string, envSlice []str
 	return cmd, writePipe
 }
 
-func NewPipe() (*os.File, *os.File, error) {
+func newPipe() (*os.File, *os.File, error) {
 	read, write, err := os.Pipe()
 	if err != nil {
 		return nil, nil, err
@@ -76,22 +69,17 @@ func NewPipe() (*os.File, *os.File, error) {
 	return read, write, nil
 }
 
-// NewWorkSpace Create a AUFS filesystem as container root workspace
-func NewWorkSpace(image, containerID string) (string, error) {
-	imageID, err := img.GetImageID(image)
-	if err != nil {
-		return "", fmt.Errorf("get image ID error: %v", err)
-	}
-
-	writeUrl, err := CreateWriteLayer(containerID)
+// NewWorkspace Create a AUFS filesystem as container root workspace
+func NewWorkspace(imageID, containerID string) (string, error) {
+	writeUrl, err := createWriteLayer(containerID)
 	if err != nil {
 		return "", err
 	}
 
-	return CreateMountPoint(imageID, containerID, writeUrl)
+	return createMountPoint(imageID, containerID, writeUrl)
 }
 
-func CreateWriteLayer(containerID string) (string, error) {
+func createWriteLayer(containerID string) (string, error) {
 	writeURL := fmt.Sprintf(ContainerWriteLayerUrl, containerID)
 	if err := os.Mkdir(writeURL, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", writeURL, err)
@@ -100,7 +88,7 @@ func CreateWriteLayer(containerID string) (string, error) {
 	return writeURL, nil
 }
 
-func CreateMountPoint(imageID, containerID, writeUrl string) (string, error) {
+func createMountPoint(imageID, containerID, writeUrl string) (string, error) {
 	mntUrl := fmt.Sprintf(ContainerMntURL, containerID)
 	if err := os.Mkdir(mntUrl, 0777); err != nil {
 		return "", fmt.Errorf("mkdir %s error: %v", mntUrl, err)
@@ -130,14 +118,14 @@ func CreateMountPoint(imageID, containerID, writeUrl string) (string, error) {
 }
 
 func DeleteWorkSpace(containerID string) error {
-	if err := DeleteMountPoint(containerID); err != nil {
+	if err := deleteMountPoint(containerID); err != nil {
 		return err
 	}
 
-	return DeleteWriterLayer(containerID)
+	return deleteWriterLayer(containerID)
 }
 
-func DeleteMountPoint(containerID string) error {
+func deleteMountPoint(containerID string) error {
 	mntUrl := fmt.Sprintf(ContainerMntURL, containerID)
 
 	cmd := exec.Command("umount", mntUrl)
@@ -154,7 +142,7 @@ func DeleteMountPoint(containerID string) error {
 	return nil
 }
 
-func DeleteWriterLayer(containerID string) error {
+func deleteWriterLayer(containerID string) error {
 	writeURL := fmt.Sprintf(ContainerWriteLayerUrl, containerID)
 	return os.RemoveAll(writeURL)
 }

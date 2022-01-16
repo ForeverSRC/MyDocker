@@ -38,16 +38,16 @@ func CreateNetwork(driver, subnet, name string) error {
 	return nw.dump(defaultNetworkPath)
 }
 
-func Connect(networkName string, cinfo *container.ContainerInfo) error {
+func Connect(networkName string, cinfo *container.ContainerInfo) (net.IP, error) {
 	network, ok := networks[networkName]
 	if !ok {
-		return fmt.Errorf("not such network %s", networkName)
+		return nil, fmt.Errorf("not such network %s", networkName)
 	}
 
 	ip, err := ipAllocator.Allocate(network.Subnet)
 	log.Infof("ip for container %s: %s", cinfo.Id, ip.String())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ep := &Endpoint{
@@ -58,14 +58,18 @@ func Connect(networkName string, cinfo *container.ContainerInfo) error {
 	}
 
 	if err = drivers[network.Driver].Connect(network, ep); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = configEndpointIpAddrAndRoute(ep, cinfo); err != nil {
-		return err
+		return nil, err
 	}
 
-	return configPortMapping(ep)
+	if err = configPortMapping(ep); err != nil {
+		return nil, err
+	}
+
+	return ip, nil
 
 }
 

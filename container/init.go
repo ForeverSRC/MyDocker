@@ -17,23 +17,27 @@ RunContainerInitProcess 此方法在容器内部执行，生成本容器执行�
 使用mount挂载proc文件系统，以便后面通过ps等命令查看当前进程资源的情况
 */
 func RunContainerInitProcess() error {
+	// block
 	cmdArray := readUserCommand()
 	if cmdArray == nil || len(cmdArray) == 0 {
 		return fmt.Errorf("run container get user command error, cmdArray is nil")
 	}
 
-	setUpMount()
-	// 可在系统的PATH中寻找命令的绝对路径
-	path, err := exec.LookPath(cmdArray[0])
-	if err != nil {
-		log.Errorf("exec look path error %v", err)
+	if err := setUpMount(); err != nil {
 		return err
 	}
 
-	// init进程读取了父进程传递过来的参数，在子进程内执行，完成了将用户指定命令传递给子进程的操作
-	if err := syscall.Exec(path, cmdArray[0:], os.Environ()); err != nil {
-		log.Errorf(err.Error())
+	// 可在系统的PATH中寻找命令的绝对路径
+	path, err := exec.LookPath(cmdArray[0])
+	if err != nil {
+		return fmt.Errorf("exec look path error %v", err)
 	}
+
+	// init进程读取了父进程传递过来的参数，在子进程内执行，完成了将用户指定命令传递给子进程的操作
+	if err = syscall.Exec(path, cmdArray[0:], os.Environ()); err != nil {
+		log.Errorf("syscall exec error: %v", err.Error())
+	}
+
 	return nil
 }
 
@@ -55,26 +59,28 @@ func readUserCommand() []string {
 	return strings.Split(msgStr, " ")
 }
 
-func setUpMount() {
+func setUpMount() error {
 	pwd, err := os.Getwd()
 	if err != nil {
-		log.Errorf("pwd error:%v", err)
+		return fmt.Errorf("pwd error:%v", err)
 	}
 
 	if err = pivotRoot(pwd); err != nil {
-		log.Errorf("pivot root error: %v", err)
+		return fmt.Errorf("pivot root error: %v", err)
 	}
 
 	defaultMountFlags := syscall.MS_NOEXEC | syscall.MS_NOSUID | syscall.MS_NODEV
 	err = syscall.Mount("proc", "/proc", "proc", uintptr(defaultMountFlags), "")
 	if err != nil {
-		log.Errorf("mount proc error: %v", err)
+		return fmt.Errorf("mount proc error: %v", err)
 	}
 
 	err = syscall.Mount("tmpfs", "/dev", "tmpfs", syscall.MS_NOSUID|syscall.MS_STRICTATIME, "mode=755")
 	if err != nil {
-		log.Errorf("mount tmpfs error: %v", err)
+		return fmt.Errorf("mount tmpfs error: %v", err)
 	}
+
+	return nil
 
 }
 

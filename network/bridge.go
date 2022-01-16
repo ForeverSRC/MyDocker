@@ -55,7 +55,7 @@ func (b *BridgeNetworkDriver) Connect(network *Network, endpoint *Endpoint) erro
 	}
 
 	la := netlink.NewLinkAttrs()
-	la.Name = "veth"+endpoint.ID[:5]
+	la.Name = "veth" + endpoint.ID[:5]
 
 	// 设置veth的一端挂载到网络对应的Linux Bridge上
 	la.MasterIndex = br.Attrs().Index

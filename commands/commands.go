@@ -1,15 +1,13 @@
 package commands
 
-import "github.com/urfave/cli"
+import (
+	containerCmd "github.com/ForeverSRC/MyDocker/commands/container-cmd"
+	"github.com/urfave/cli"
+)
 
-var AllCommands = []cli.Command{
-	initCommand,
-	runCommand,
-	listCommand,
-	logCommand,
-	stopCommand,
-	removeCommand,
-	execCommand,
-	commitCommand,
-	networkCommand,
+var AllCommands []cli.Command
+
+func init() {
+	AllCommands = append(AllCommands, containerCmd.ContainerCommands...)
+	AllCommands = append(AllCommands, networkCommand, commitCommand)
 }
