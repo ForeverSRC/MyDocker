@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ForeverSRC/MyDocker/network"
+	"github.com/ForeverSRC/MyDocker/utils"
 	"github.com/urfave/cli"
 )
 
@@ -45,12 +46,15 @@ var networkCreateCmd = cli.Command{
 	},
 }
 
+const networkTableTitle = "NAME\tSubnet\tGateway\tDriver\n"
+
 var networkListCmd = cli.Command{
 	Name:  "ls",
 	Usage: "list container network",
 	Action: func(context *cli.Context) error {
 		network.Init()
-		network.ListNetwork()
+		infos := network.ListNetwork()
+		utils.PrintInfoTable(networkTableTitle, infos)
 		return nil
 	},
 }
