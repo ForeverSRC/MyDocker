@@ -184,9 +184,6 @@ func (ipam *IPAM) Release(subnet *net.IPNet, ipAddr *net.IP) error {
 		return err
 	}
 
-	// 转换成子网聚合形式，因为subnet 中的ip可能是一个具体的ip，不是子网ip
-	_, subnet, _ = net.ParseCIDR(subnet.String())
-
 	c := 0
 	// 4字节表示方式
 	releaseIP := ipAddr.To4()

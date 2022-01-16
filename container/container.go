@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ForeverSRC/MyDocker/cgroups"
 	"github.com/ForeverSRC/MyDocker/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -148,37 +147,4 @@ func changeContainerInfoToStop(containerInfo *ContainerInfo) *ContainerInfo {
 	}
 
 	return containerInfo
-}
-
-func RemoveContainer(containerID string) {
-	containerInfo, err := GetContainerInfoById(containerID)
-	if err != nil {
-		log.Errorf("get container %s info error %v", containerID, err)
-		return
-	}
-
-	if containerInfo.Status == RUNNING {
-		log.Errorf("could not remove running container")
-		return
-	}
-
-	// remove container config files
-	dirUrl := fmt.Sprintf(DefaultInfoLocation, containerID)
-	if err = os.RemoveAll(dirUrl); err != nil {
-		log.Errorf("remove file %s error: %v", dirUrl, err)
-		return
-	}
-
-	// remove container write layer
-	if err = DeleteWorkSpace(containerID); err != nil {
-		log.Errorf("remove workspace of container %s error: %v", containerID, err)
-		return
-	}
-
-	// remove container cgroups
-	cgroupManager := cgroups.NewCgroupManager(fmt.Sprintf(cgroups.CgroupPathFormat, containerID))
-	if err = cgroupManager.Destroy(); err != nil {
-		log.Errorf("remove cgroup of container %s error: %v", containerID, err)
-	}
-
 }

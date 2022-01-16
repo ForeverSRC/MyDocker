@@ -45,7 +45,6 @@ func Connect(networkName string, cinfo *container.ContainerInfo) (net.IP, error)
 	}
 
 	ip, err := ipAllocator.Allocate(network.Subnet)
-	log.Infof("ip for container %s: %s", cinfo.Id, ip.String())
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +60,7 @@ func Connect(networkName string, cinfo *container.ContainerInfo) (net.IP, error)
 		return nil, err
 	}
 
-	if err = configEndpointIpAddrAndRoute(ep, cinfo); err != nil {
+	if err = configEndpointIpAddrAndRoute(ep, cinfo.Pid); err != nil {
 		return nil, err
 	}
 
@@ -73,7 +72,22 @@ func Connect(networkName string, cinfo *container.ContainerInfo) (net.IP, error)
 
 }
 
-func configEndpointIpAddrAndRoute(ep *Endpoint, cinfo *container.ContainerInfo) error {
+func ReleaseIp(network, ipAddr string) {
+	nw, ok := networks[network]
+	if !ok {
+		log.Errorf("network %s is not exist", network)
+		return
+	}
+
+	_, subnet, _ := net.ParseCIDR(nw.Subnet)
+	ip := net.ParseIP(ipAddr)
+
+	if err := ipAllocator.Release(subnet, &ip); err != nil {
+		log.Errorf("release ip address %s error: %v", ipAddr, err)
+	}
+}
+
+func configEndpointIpAddrAndRoute(ep *Endpoint, pid string) error {
 	vethPeerName := ep.Device.PeerName
 	peerLink, err := netlink.LinkByName(vethPeerName)
 	if err != nil {
@@ -82,7 +96,7 @@ func configEndpointIpAddrAndRoute(ep *Endpoint, cinfo *container.ContainerInfo) 
 
 	// 将容器的网络端点加入到容器的网络空间中
 	// 并使当前函数下面的操作都在此网络空间中进行，当前函数执行完毕后，恢复为默认的网络空间
-	defer enterContainerNetns(&peerLink, cinfo)()
+	defer enterContainerNetns(&peerLink, pid)()
 
 	// 获取到容器的IP地址及网段，用于配置容器内部接口地址
 	interfaceIP := ep.Network.getIPNet()
@@ -123,9 +137,9 @@ func configEndpointIpAddrAndRoute(ep *Endpoint, cinfo *container.ContainerInfo) 
 
 }
 
-func enterContainerNetns(enLink *netlink.Link, cinfo *container.ContainerInfo) func() {
+func enterContainerNetns(enLink *netlink.Link, pid string) func() {
 	// /proc/[pid]/ns/net 打开此文件描述符，即可操作 Net Namespace
-	f, err := os.OpenFile(fmt.Sprintf("/proc/%s/ns/net", cinfo.Pid), os.O_RDONLY, 0)
+	f, err := os.OpenFile(fmt.Sprintf("/proc/%s/ns/net", pid), os.O_RDONLY, 0)
 	if err != nil {
 		log.Errorf("error get container net namespace, %v", err)
 	}
