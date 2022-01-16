@@ -119,3 +119,26 @@ func updateRepositories(repo string, tag string, imageID string) error {
 
 	return nil
 }
+
+func ListImages() []string {
+	imgRepo, err := getRepositories()
+	if err != nil {
+		log.Errorf("get image repositories info error: %v", err)
+		return nil
+	}
+
+	infos := make([]string, 0)
+	for repo, imgs := range imgRepo.Repositories {
+		for img, id := range imgs {
+			info := fmt.Sprintf("%s\t%s\t%s\n",
+				repo,
+				getImageRepoNameAndTag(img)[1],
+				strings.Split(id, ":")[1][:12])
+			infos = append(infos, info)
+		}
+
+	}
+
+	return infos
+
+}

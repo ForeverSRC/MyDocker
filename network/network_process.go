@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/ForeverSRC/MyDocker/container"
 	log "github.com/sirupsen/logrus"
@@ -196,23 +195,20 @@ func configPortMapping(ep *Endpoint) error {
 	return nil
 }
 
-func ListNetwork() {
-	w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
-	fmt.Fprint(w, "NAME\tSubnet\tGateway\tDriver\n")
-
+func ListNetwork() []string {
+	infos := make([]string, len(networks))
+	idx := 0
 	for _, nw := range networks {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		infos[idx] = fmt.Sprintf("%s\t%s\t%s\t%s\n",
 			nw.Name,
 			nw.Subnet,
 			nw.Gateway,
 			nw.Driver,
 		)
+		idx++
 	}
 
-	if err := w.Flush(); err != nil {
-		log.Errorf("flush error: %v", err)
-	}
-
+	return infos
 }
 
 func DeleteNetwork(networkName string) error {
