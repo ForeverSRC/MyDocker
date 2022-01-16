@@ -2,13 +2,13 @@ package container_cmd
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
 
 	"github.com/ForeverSRC/MyDocker/container"
-	log "github.com/sirupsen/logrus"
+	"github.com/ForeverSRC/MyDocker/utils"
 	"github.com/urfave/cli"
 )
+
+const containerTableTitle = "CONTAINER ID\tIMAGE\tName\tPID\tSTATUS\tCOMMAND\tCREATED\tNETWORK\tIP\tPort Mapping\n"
 
 var listCommand = cli.Command{
 	Name:  "ps",
@@ -26,10 +26,9 @@ var listCommand = cli.Command{
 }
 
 func printContainerInfoTable(containers []*container.ContainerInfo) {
-	w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
-	fmt.Fprint(w, "CONTAINER ID\tIMAGE\tName\tPID\tSTATUS\tCOMMAND\tCREATED\tNETWORK\tIP\tPort Mapping\n")
-	for _, item := range containers {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+	infos := make([]string, len(containers))
+	for idx, item := range containers {
+		infos[idx] = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.Id,
 			item.Image,
 			item.Name,
@@ -43,8 +42,5 @@ func printContainerInfoTable(containers []*container.ContainerInfo) {
 		)
 	}
 
-	if err := w.Flush(); err != nil {
-		log.Errorf("flush error: %v", err)
-	}
-
+	utils.PrintInfoTable(containerTableTitle, infos)
 }

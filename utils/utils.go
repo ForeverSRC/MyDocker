@@ -1,7 +1,12 @@
 package utils
 
 import (
+	"fmt"
+	"os"
 	"syscall"
+	"text/tabwriter"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func ProcessExist(containerPid int) bool {
@@ -10,4 +15,16 @@ func ProcessExist(containerPid int) bool {
 	}
 
 	return true
+}
+
+func PrintInfoTable(title string, infos []string) {
+	w := tabwriter.NewWriter(os.Stdout, 12, 1, 3, ' ', 0)
+	fmt.Fprint(w, title)
+	for _, item := range infos {
+		fmt.Fprint(w, item)
+	}
+
+	if err := w.Flush(); err != nil {
+		log.Errorf("flush error: %v", err)
+	}
 }

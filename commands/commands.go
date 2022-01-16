@@ -9,5 +9,5 @@ var AllCommands []cli.Command
 
 func init() {
 	AllCommands = append(AllCommands, containerCmd.ContainerCommands...)
-	AllCommands = append(AllCommands, networkCommand, commitCommand)
+	AllCommands = append(AllCommands, networkCommand, commitCommand, imageCommand)
 }
